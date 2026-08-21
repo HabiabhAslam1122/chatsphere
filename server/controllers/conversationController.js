@@ -33,14 +33,25 @@ exports.startConversation = async (req, res) => {
   }
 };
 
-// Get all conversations for the logged-in user
+// Get all conversations for the logged-in user, with unread message counts
 exports.getMyConversations = async (req, res) => {
   try {
     const conversations = await Conversation.find({
       participants: req.user._id,
     }).populate('participants', 'name email');
 
-    res.status(200).json(conversations);
+    const withUnreadCounts = await Promise.all(
+      conversations.map(async (conv) => {
+        const unreadCount = await Message.countDocuments({
+          conversation: conv._id,
+          sender: { $ne: req.user._id },
+          read: false,
+        });
+        return { ...conv.toObject(), unreadCount };
+      })
+    );
+
+    res.status(200).json(withUnreadCounts);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

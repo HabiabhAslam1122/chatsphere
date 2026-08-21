@@ -19,7 +19,7 @@ function ConversationsList() {
   }, []);
 
   const fetchConversations = async () => {
-    const res = await fetch('http://localhost:5000/api/conversations/my', {
+    const res = await fetch('https://chatsphere-backend-npg8.onrender.com/api/conversations/my', {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -31,7 +31,7 @@ function ConversationsList() {
     setError('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/conversations/start', {
+      const res = await fetch('https://chatsphere-backend-npg8.onrender.com/api/conversations/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,11 +93,12 @@ function ConversationsList() {
             className="conv-item"
             onClick={() => navigate(`/chat/${conv._id}`)}
           >
-            <div className="conv-avatar">{other?.name?.charAt(0).toUpperCase()}</div>
+                        <div className="conv-avatar">{other?.name?.charAt(0).toUpperCase()}</div>
             <div className="conv-info">
               <strong>{other?.name}</strong>
               <span>{other?.email}</span>
             </div>
+            {conv.unreadCount > 0 && <div className="unread-dot">{conv.unreadCount}</div>}
           </div>
         );
       })}

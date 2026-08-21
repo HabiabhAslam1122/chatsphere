@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:5000');
+const socket = io('https://chatsphere-backend-npg8.onrender.com');
 
 function Chat() {
   const [message, setMessage] = useState('');
@@ -19,6 +19,11 @@ function Chat() {
 
   const isOnline = onlineUsers.includes(otherUserId);
   const isTyping = typingUserId === otherUserId;
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   useEffect(() => {
     if (!token) {
@@ -26,7 +31,7 @@ function Chat() {
       return;
     }
 
-    fetch('http://localhost:5000/api/conversations/my', {
+    fetch('https://chatsphere-backend-npg8.onrender.com/api/conversations/my', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -39,7 +44,7 @@ function Chat() {
         }
       });
 
-    socket.emit('join_conversation', conversationId);
+    socket.emit('join_conversation', conversationId, user.id);
     socket.emit('user_online', user.id);
 
     socket.on('online_users', (onlineUserIds) => {
@@ -63,12 +68,21 @@ function Chat() {
       setMessages((prevMessages) => prevMessages.filter((msg) => msg._id !== messageId));
     });
 
+    socket.on('messages_read', ({ readBy }) => {
+      if (readBy !== user.id) {
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) => (msg.sender === user.id ? { ...msg, read: true } : msg))
+        );
+      }
+    });
+
     return () => {
       socket.off('load_messages');
       socket.off('receive_message');
       socket.off('online_users');
       socket.off('user_typing');
       socket.off('message_deleted');
+      socket.off('messages_read');
     };
   }, [conversationId, token, navigate]);
 
@@ -89,7 +103,7 @@ function Chat() {
 
   const deleteMessage = async (messageId) => {
     try {
-      await fetch(`http://localhost:5000/api/conversations/message/${messageId}`, {
+      await fetch(`https://chatsphere-backend-npg8.onrender.com/api/conversations/message/${messageId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -114,17 +128,36 @@ function Chat() {
       {isTyping && <p className="typing-indicator">{otherUserName} is typing...</p>}
 
       <div className="messages-area">
-        {messages.map((msg) => (
-          <div
-            key={msg._id}
-            className={`message-bubble ${msg.sender === user.id ? 'message-mine' : 'message-theirs'}`}
-          >
-            {msg.text}
-            {msg.sender === user.id && (
-              <span className="delete-btn" onClick={() => deleteMessage(msg._id)}>×</span>
-            )}
-          </div>
-        ))}
+        {messages.map((msg, index) => {
+          const msgDate = new Date(msg.createdAt).toDateString();
+          const prevDate = index > 0 ? new Date(messages[index - 1].createdAt).toDateString() : null;
+          const showDateSeparator = msgDate !== prevDate;
+
+          return (
+            <React.Fragment key={msg._id}>
+              {showDateSeparator && (
+                <div className="date-separator">
+                  <span>{new Date(msg.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </div>
+              )}
+              <div className={`message-bubble ${msg.sender === user.id ? 'message-mine' : 'message-theirs'}`}>
+                {msg.text}
+                <span className="msg-time">
+                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                {msg.sender === user.id && (
+                  <span className={`msg-tick ${msg.read ? 'read' : ''}`}>
+                    {msg.read ? '✓✓' : isOnline ? '✓✓' : '✓'}
+                  </span>
+                )}
+                {msg.sender === user.id && (
+                  <span className="delete-btn" onClick={() => deleteMessage(msg._id)}>×</span>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+        <div ref={messagesEndRef} />
       </div>
 
       <div className="message-input-area">

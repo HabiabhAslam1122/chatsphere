@@ -36,15 +36,21 @@ io.on('connection', (socket) => {
     socket.userId = userId;
     io.emit('online_users', Array.from(onlineUsers.keys()));
   });
-
-  socket.on('join_conversation', async (conversationId) => {
+  socket.on('join_conversation', async (conversationId, userId) => {
     socket.join(conversationId);
     console.log(`Socket ${socket.id} joined conversation ${conversationId}`);
+
+    await Message.updateMany(
+      { conversation: conversationId, sender: { $ne: userId }, read: false },
+      { $set: { read: true } }
+    );
 
     const previousMessages = await Message.find({ conversation: conversationId })
       .sort({ createdAt: 1 })
       .limit(50);
     socket.emit('load_messages', previousMessages);
+
+    io.to(conversationId).emit('messages_read', { conversationId, readBy: userId });
   });
 
   socket.on('typing', ({ conversationId, senderId }) => {
